@@ -8,8 +8,14 @@
 
 #import <UIKit/UIKit.h>
 
+typedef void (^EXPhotoViewerWillDisplayCallback)(UIImageView*);
+typedef void (^EXPhotoViewerFinishedDisplayCallback)();
+
 @interface EXPhotoViewer : UIViewController <UIScrollViewDelegate>
 
-+ (void) showImageFrom:(UIImageView*) image;
++ (void) showImageFrom:(UIImageView*) imageView;
++ (void) showImageFrom:(UIImageView*) imageView
+               display:(EXPhotoViewerWillDisplayCallback)displayCallback
+                finish:(EXPhotoViewerFinishedDisplayCallback)finishCallback;
 
 @end

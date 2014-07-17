@@ -16,7 +16,11 @@
 @property (nonatomic, assign) CGRect originalImageRect;
 @property (nonatomic, retain) UIViewController* controller;
 @property (nonatomic, retain) UIViewController* selfController;
-@property (nonatomic, retain) UIImageView* originalImage;
+@property (nonatomic, retain) UIImageView* originalImageView;
+@property (nonatomic, retain) UIImage* originalImage;
+
+@property (nonatomic, copy) EXPhotoViewerWillDisplayCallback displayCallback;
+@property (nonatomic, copy) EXPhotoViewerFinishedDisplayCallback finishCallback;
 
 @end
 
@@ -25,12 +29,19 @@ static CGFloat s_backgroundScale = 0.8f;
 @implementation EXPhotoViewer
 
 + (void) showImageFrom:(UIImageView*) imageView {
+    [self showImageFrom:imageView display:nil finish:nil];
+}
+
++ (void) showImageFrom:(UIImageView*) imageView
+               display:(EXPhotoViewerWillDisplayCallback)displayCallback
+                finish:(EXPhotoViewerFinishedDisplayCallback)finishCallback{
     if (imageView.image) {
         EXPhotoViewer* viewer = [EXPhotoViewer new];
+        viewer.displayCallback = displayCallback;
+        viewer.finishCallback = finishCallback;
         [viewer showImageFrom:imageView];
     }
 }
-
 -(void)loadView {
     self.view = [[UIView alloc] initWithFrame:[UIScreen mainScreen].bounds];
     self.view.backgroundColor = [UIColor clearColor];
@@ -79,14 +90,14 @@ static CGFloat s_backgroundScale = 0.8f;
     
     [controller.view addSubview:self.view];
 
-    self.theImageView.image = imageView.image;
+    self.originalImage = self.theImageView.image = imageView.image;
     self.originalImageRect = [imageView convertRect:imageView.bounds toView:self.view];
 
     self.theImageView.frame = self.originalImageRect;
     
     //listen to the orientation change notification
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(orientationDidChange:) name:UIDeviceOrientationDidChangeNotification object:nil];
-
+    
     
     [UIView animateWithDuration:0.3 animations:^{
         self.view.backgroundColor = [UIColor colorWithWhite:0.0 alpha:0.7];
@@ -99,8 +110,12 @@ static CGFloat s_backgroundScale = 0.8f;
     }];
     
     self.selfController = self; //Stupid ARC I need to do this to avoid being dealloced :P
-    self.originalImage = imageView;
+    self.originalImageView = imageView;
     imageView.image = nil;
+    
+    if (self.displayCallback) {
+        self.displayCallback(self.theImageView);
+    }
 }
 
 -(void) dealloc{
@@ -124,7 +139,7 @@ static CGFloat s_backgroundScale = 0.8f;
     self.zoomeableScrollView.contentInset = UIEdgeInsetsZero;
     self.theImageView.frame = absoluteCGRect;
     
-    CGRect originalImageRect = [self.originalImage convertRect:self.originalImage.frame toView:self.view];
+    CGRect originalImageRect = [self.originalImageView convertRect:self.originalImageView.frame toView:self.view];
     //originalImageRect is now scaled down, need to adjust
     CGFloat scaleBack = 1.0/s_backgroundScale;
     CGFloat x = originalImageRect.origin.x;
@@ -146,15 +161,18 @@ static CGFloat s_backgroundScale = 0.8f;
         self.view.backgroundColor = [UIColor clearColor];
         self.tempViewContainer.layer.transform = CATransform3DIdentity;
     }completion:^(BOOL finished) {
-        self.originalImage.image = self.theImageView.image;
+        self.originalImageView.image = self.originalImage;
         self.controller.view.backgroundColor = self.tempViewContainer.backgroundColor;
         for (UIView* subView in self.tempViewContainer.subviews) {
             [self.controller.view addSubview:subView];
         }
         [self.view removeFromSuperview];
         [self.tempViewContainer removeFromSuperview];
+        
+        if (self.finishCallback) {
+            self.finishCallback();
+        }
     }];
-    
     self.selfController = nil;//Ok ARC you can kill me now.
 }
 
